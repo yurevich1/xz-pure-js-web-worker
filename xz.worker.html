@@ -1,0 +1,139 @@
+
+<html>
+<head>
+<meta charset="UTF-8">
+<script type="text/javascript" src="archive.lib.min.js"></script>
+<body>
+<button id="xzme">xz me!</button>
+<button id="unxzme" disabled="disabled">unxz me!</button>
+<p id="value">0%</p>
+<p>Usage:</p>
+<br/>
+<ul>
+<li>"xz me!" button generates a random string and converts into XZ archived data.</li>
+<li>"unxz me!" button decompresses created XZ archived string into data array.</li>
+<li>Please, open console (F12) in order to view compressed and decompressed data</li>
+</ul>
+<a href="https://blog.slava.online" target="_blank">https://blog.slava.online</a>
+<br/>
+<a href="https://blog.slava.online/xz-archiver-webworker-for-browser-pure-js/" target="_blank">Description: https://blog.slava.online/xz-archiver-webworker-for-browser-pure-js/</a>
+<br/>
+<a href="https://blog.slava.online/shareddir/xz_example/xz.zip" target="_blank">Download this example</a>
+
+<script>
+	var makeid = function(max_){
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < max_; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
+	}, str2ab = function(str) {//ascii string to Uint8Array
+	var arr=[];
+	for(var i=0,j=str.length;i<j;++i){
+		arr.push(str.charCodeAt(i));
+	}
+	return new Uint8Array(arr);
+	}, Uint8ToString = function (u8a){
+		if (u8a == null) return "null";
+		var CHUNK_SZ = 0x8000;
+		var c = [];
+		for (var i=0; i < u8a.length; i+=CHUNK_SZ) {
+			c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
+		}
+		return c.join("");
+	}, val = document.getElementById('value'),
+	xzme = document.getElementById('xzme'), unxzme = document.getElementById('unxzme'), workerXZ, tmp , t0 = (new Date).getTime(), t1 = (new Date).getTime(), kbl = 1024;
+	
+	//into XZ
+	xzme.onclick = function(){
+		val.innerHTML = 'xzme';
+		val.innerHTML = 'generates String '  + kbl + ' *1024 length';
+		t0 = (new Date).getTime()
+		if(typeof(workerXZ) == "undefined") {
+			workerXZ = new Worker('worker.xz.wrapper.js');
+			workerXZ.onerror = function(e) {
+				val.innerHTML = e + '';
+				console.log("workerXZ error: ", e);
+				workerXZ = undefined;
+			}
+			var str_to_compress = makeid(kbl * 1024);
+			var ss = str2ab(str_to_compress);
+			var $ar = ss;
+			workerXZ.onmessage = function(event) {//1
+				if (event.data.type === 1){
+					value.innerHTML = '' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%';
+				} else if (event.data.type == 2){
+					t1 = (new Date).getTime();
+					tmp = event.data.results;
+					value.innerHTML = (t1 - t0)  + 'ms; ' + 100 + '%' + '; ' + 'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.';
+					unxzme.removeAttribute('disabled');
+					console.log(tmp);
+					workerXZ.terminate();//this is very important!!! You have to release memory!
+					workerXZ = undefined;
+				}
+			}
+			
+			var level = 7;//level >= 8 can kill mobile browser and value == 9 kill any browser. This bug appears due to the format consumes a lot of memory for large values (8 -> 1GB, 9 -> 2GB). No browser can give you more than 1GB for now.
+			t0 = (new Date).getTime();
+				workerXZ.postMessage({
+					id:1,
+					level: level,
+					action:'compress',
+					FilesDataArray: $ar
+				});
+		} else {
+			//stop if press again
+			workerXZ.terminate();
+			workerXZ = undefined;
+			console.log('workerXZ Stopped');
+		}
+	};
+
+	//unXZ
+	unxzme.onclick = function(){
+		if (typeof(tmp) == "undefined" || tmp == null) {
+			//remove this if-else in your code. this is just for this example
+		} else {
+			val.innerHTML = 'unxzme';
+			if(typeof(workerXZ) == "undefined") {
+				workerXZ = new Worker('worker.xz.wrapper.js');
+				var Uints = tmp;// for xhr use this: new Uint8Array(this.response);
+				var $ar = [Uints];
+				workerXZ.onerror = function(e) {
+					val.innerHTML = e + '';
+					console.log("workerXZ error: ", e);
+					workerXZ = undefined;
+				}
+				workerXZ.onmessage = function(event) {//1
+					if (event.data.type === 1){
+						value.innerHTML = '' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%';
+					} else if (event.data.type == 2){
+						t1 = (new Date).getTime();
+						value.innerHTML = (t1 - t0)  + 'ms; ' + 100 + '%' + '; ' + 'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.';
+						// event.data.results: data in Uint8Array 
+						console.log(event.data.results);
+					//	var str = Uint8ToString(event.data.results);
+					//	console.log(str);
+						workerXZ.terminate();//this is very important!!! You have to release memory!
+						workerXZ = undefined;
+					}
+				}
+				t0 = (new Date).getTime();
+				workerXZ.postMessage({
+					id:1,
+					action:'decompress',
+					FilesDataArray: $ar
+				});
+			} else {
+				//stop if press again
+				workerXZ.terminate();
+				workerXZ = undefined;
+				console.log('workerXZ Stopped');
+			}
+		}
+	};
+</script>
+</body>
+</html>
