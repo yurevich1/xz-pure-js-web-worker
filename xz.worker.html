@@ -3,15 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <script type="text/javascript" src="archive.lib.min.js"></script>
+<script type="text/javascript" src="xz.js"></script>
 <body>
 <button id="xzme">xz me!</button>
 <button id="unxzme" disabled="disabled">unxz me!</button>
-<p id="value">0%</p>
-<p>Usage:</p>
 <br/>
+<br/>
+<button id="xzmemui">xz me! Main Thread</button>
+<button id="unxzmemui" disabled="disabled">unxz me! Main Thread</button>
+<p id="value">To start test process, please, press "xz me!" or "xz me! Main Thread" buttons.</p>
+<p>Usage:</p>
 <ul>
 <li>"xz me!" button generates a random string and converts into XZ archived data.</li>
 <li>"unxz me!" button decompresses created XZ archived string into data array.</li>
+<li>"xz me! Main Thread!" &apm; "unxz me! Main Thread" shows the work inside main thread. Be careful! This code completely blocks UI!</li>
 <li>Please, open console (F12) in order to view compressed and decompressed data</li>
 </ul>
 <a href="https://blog.slava.online" target="_blank">https://blog.slava.online</a>
@@ -43,18 +48,31 @@
 			c.push(String.fromCharCode.apply(null, u8a.subarray(i, i+CHUNK_SZ)));
 		}
 		return c.join("");
-	}, val = document.getElementById('value'),
-	xzme = document.getElementById('xzme'), unxzme = document.getElementById('unxzme'), workerXZ, tmp , t0 = (new Date).getTime(), t1 = (new Date).getTime(), kbl = 1024;
-	
+	},
+	value = document.getElementById('value'),
+	xzme = document.getElementById('xzme'),
+	unxzme = document.getElementById('unxzme'),
+	xzmemui = document.getElementById('xzmemui'),
+	unxzmemui = document.getElementById('unxzmemui'),
+	workerXZ,
+	tmp,
+	t0 = (new Date).getTime(), t1 = t0,
+	kbl = 1024,
+	enableBtns = function() {
+		unxzme.removeAttribute('disabled');
+		unxzmemui.removeAttribute('disabled');
+	},
+	val = function(str) {
+		value.innerHTML = str;
+	};
 	//into XZ
 	xzme.onclick = function(){
-		val.innerHTML = 'xzme';
-		val.innerHTML = 'generates String '  + kbl + ' *1024 length';
+		val('generates String '  + kbl + ' *1024 length');
 		t0 = (new Date).getTime()
 		if(typeof(workerXZ) == "undefined") {
 			workerXZ = new Worker('worker.xz.wrapper.js');
 			workerXZ.onerror = function(e) {
-				val.innerHTML = e + '';
+				val(e + '');
 				console.log("workerXZ error: ", e);
 				workerXZ = undefined;
 			}
@@ -63,12 +81,12 @@
 			var $ar = ss;
 			workerXZ.onmessage = function(event) {//1
 				if (event.data.type === 1){
-					value.innerHTML = '' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%';
+					val('' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
 				} else if (event.data.type == 2){
 					t1 = (new Date).getTime();
 					tmp = event.data.results;
-					value.innerHTML = (t1 - t0)  + 'ms; ' + 100 + '%' + '; ' + 'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.';
-					unxzme.removeAttribute('disabled');
+					val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' + 'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.');
+					enableBtns();
 					console.log(tmp);
 					workerXZ.terminate();//this is very important!!! You have to release memory!
 					workerXZ = undefined;
@@ -90,28 +108,28 @@
 			console.log('workerXZ Stopped');
 		}
 	};
-
+	
 	//unXZ
 	unxzme.onclick = function(){
 		if (typeof(tmp) == "undefined" || tmp == null) {
 			//remove this if-else in your code. this is just for this example
 		} else {
-			val.innerHTML = 'unxzme';
+			val('unxzme');
 			if(typeof(workerXZ) == "undefined") {
 				workerXZ = new Worker('worker.xz.wrapper.js');
 				var Uints = tmp;// for xhr use this: new Uint8Array(this.response);
 				var $ar = [Uints];
 				workerXZ.onerror = function(e) {
-					val.innerHTML = e + '';
+					val(e + '');
 					console.log("workerXZ error: ", e);
 					workerXZ = undefined;
 				}
 				workerXZ.onmessage = function(event) {//1
 					if (event.data.type === 1){
-						value.innerHTML = '' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%';
+						val('' + Math.round((event.data.cur - 1) / event.data.max_ * 100.) + '%');
 					} else if (event.data.type == 2){
 						t1 = (new Date).getTime();
-						value.innerHTML = (t1 - t0)  + 'ms; ' + 100 + '%' + '; ' + 'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.';
+						val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' + 'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.');
 						// event.data.results: data in Uint8Array 
 						console.log(event.data.results);
 					//	var str = Uint8ToString(event.data.results);
@@ -132,6 +150,45 @@
 				workerXZ = undefined;
 				console.log('workerXZ Stopped');
 			}
+		}
+	};
+	//into XZ. Main Thread
+	xzmemui.onclick = function() {
+		val("Please, wait until all calculations are done. UI is blocked.");
+		setTimeout(function(){
+		//you can remove setTimeout wrapper. This function is used due to show the message above.
+			var str_to_compress = makeid(kbl * 1024);
+			var ss = str2ab(str_to_compress);
+			t0 = (new Date).getTime();
+			var level = 7;//level >= 8 can kill mobile browser and value == 9 kill any browser. This bug appears due to the format consumes a lot of memory for large values (8 -> 1GB, 9 -> 2GB). No browser can give you more than 1GB for now.
+			var extreme = 0;
+			var res_xz = toXZ(ss,1,level,extreme,  
+			function(cur, max_) {  
+			//	console.log([cur, max_]);
+			});
+			t1 = (new Date).getTime();
+			console.log(res_xz);
+			tmp = res_xz;
+			enableBtns();
+			val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' +  'compressed from ' + (kbl * 1024) + ' into ' + tmp.length + ';  look at console (F12) to look at Uint8Array; the data is stored in \'tmp\' variable too.');
+		},5);
+	};
+	//unXZ. Main Thread
+	unxzmemui.onclick = function() {
+		if (typeof(tmp) == "undefined" || tmp == null) {
+			//remove this if-else in your code. this is just for this example
+		} else {
+			val("Please, wait until all calculations are done. UI is blocked.");
+			setTimeout(function(){
+			//you can remove setTimeout wrapper. This function is used due to show the message above.
+				t0 = (new Date).getTime();
+				var res = toXZ(tmp,0,0,0, function(cur, max_) {  
+				//	console.log([cur, max_]);
+				});
+				t1 = (new Date).getTime();
+				console.log(res); 
+				val(100 + '%' + '; ' + (t1 - t0)  + 'ms; ' +  'decompressed from ' + tmp.length + ' into ' + (kbl * 1024) + '; look at console (F12) to find string.');
+			},5);
 		}
 	};
 </script>
