@@ -1,2 +1,4 @@
 # Linguist language overrides
 *.js linguist-language=JavaScript
+worker.xz.wrapper.js linguist-language=JavaScript
+xz.js linguist-language=JavaScript
