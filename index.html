@@ -28,6 +28,7 @@
 <a href="https://blog.slava.online/shareddir/xz/xz.zip" target="_blank">Download this example</a>
 
 <script>
+	var totalMemory = 268435456;
 	var makeid = function(max_){
     var text = "";
     var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -101,7 +102,8 @@
 					id:1,
 					level: level,
 					action:'compress',
-					FilesDataArray: $ar
+					FilesDataArray: $ar,
+					totalMemory: totalMemory
 				});
 		} else {
 			//stop if press again
@@ -144,7 +146,8 @@
 				workerXZ.postMessage({
 					id:1,
 					action:'decompress',
-					FilesDataArray: $ar
+					FilesDataArray: $ar,
+					totalMemory: totalMemory
 				});
 			} else {
 				//stop if press again
@@ -164,7 +167,7 @@
 			t0 = (new Date).getTime();
 			var level = 7;//level >= 8 can kill mobile browser and value == 9 kill any browser. This bug appears due to the format consumes a lot of memory for large values (8 -> 1GB, 9 -> 2GB). No browser can give you more than 1GB for now.
 			var extreme = 0;
-			var res_xz = toXZ(ss,1,level,extreme,  
+			var res_xz = toXZ(ss,1,level,extreme, totalMemory,
 			function(cur, max_) {  
 			//	console.log([cur, max_]);
 			});
@@ -184,7 +187,7 @@
 			setTimeout(function(){
 			//you can remove setTimeout wrapper. This function is used due to show the message above.
 				t0 = (new Date).getTime();
-				var res = toXZ(tmp,0,0,0, function(cur, max_) {  
+				var res = toXZ(tmp,0,0,0,totalMemory, function(cur, max_) {  
 				//	console.log([cur, max_]);
 				});
 				t1 = (new Date).getTime();
